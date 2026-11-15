@@ -1,0 +1,19 @@
+{
+ "species": 4179,
+ "species_with_images": 4172,
+ "holdout_species": 224,
+ "images": 66763,
+ "images_with_original": 66678,
+ "splits": {
+  "train": 50290,
+  "val": 6296,
+  "test": 6411,
+  "holdout": 3766
+ },
+ "dropped": {
+  "tiny_preview_without_original": 106,
+  "duplicate_within_species": 4
+ },
+ "disk_checked": true,
+ "tags_without_training_images": []
+}

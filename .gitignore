@@ -1,0 +1,7 @@
+# Large/derived files live in work/ (images, embeddings, runs, exports).
+work/
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/

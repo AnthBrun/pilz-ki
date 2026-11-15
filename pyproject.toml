@@ -1,0 +1,35 @@
+[project]
+name = "pilzki"
+version = "0.1.0"
+description = "Predict visible mushroom traits (filter tags) and species from photos for pilze.anthonybrunner.de"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy>=1.24",
+    "pillow>=10",
+    "tqdm>=4.66",
+]
+
+[project.optional-dependencies]
+train = [
+    "torch>=2.3",
+    "torchvision>=0.18",
+    "timm>=1.0.9",
+    "open_clip_torch>=2.26",
+    "huggingface_hub>=0.23",
+    "scikit-learn>=1.4",
+]
+export = [
+    "onnx>=1.16",
+    "onnxruntime>=1.18",
+]
+dev = ["pytest>=8"]
+
+[project.scripts]
+pilzki = "pilzki.__main__:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

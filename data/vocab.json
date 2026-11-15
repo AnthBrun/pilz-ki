@@ -1,0 +1,458 @@
+{
+ "groups": [
+  {
+   "name": "gruppe",
+   "part": "body",
+   "exclusive": true,
+   "requires": null,
+   "tags": [
+    "hutpilz",
+    "kugel",
+    "hut_koralle",
+    "konsistenz_gallertartig",
+    "f",
+    "sonstige_gattung"
+   ]
+  },
+  {
+   "name": "hut_farbe",
+   "part": "cap",
+   "exclusive": true,
+   "requires": null,
+   "tags": [
+    "weiß",
+    "gelb",
+    "braun",
+    "schwarz",
+    "rot",
+    "orange",
+    "blau",
+    "gruen",
+    "rosa",
+    "grau"
+   ]
+  },
+  {
+   "name": "hut_form",
+   "part": "cap",
+   "exclusive": true,
+   "requires": "hutpilz",
+   "tags": [
+    "spitz",
+    "schirm",
+    "trichter",
+    "sonstige_form"
+   ]
+  },
+  {
+   "name": "hut_oberflaeche",
+   "part": "cap",
+   "exclusive": false,
+   "requires": null,
+   "tags": [
+    "flocken",
+    "hut_gerieft"
+   ]
+  },
+  {
+   "name": "unterseite",
+   "part": "underside",
+   "exclusive": true,
+   "requires": "hutpilz",
+   "tags": [
+    "lamellen",
+    "roehren",
+    "stachel",
+    "leisten"
+   ]
+  },
+  {
+   "name": "unterseite_farbe",
+   "part": "underside",
+   "exclusive": true,
+   "requires": "hutpilz",
+   "tags": [
+    "lr_weiß",
+    "lr_gelb",
+    "lr_braun",
+    "lr_schwarz",
+    "lr_rot",
+    "lr_orange",
+    "lr_blau",
+    "lr_gruen",
+    "lr_rosa",
+    "lr_grau"
+   ]
+  },
+  {
+   "name": "stiel_farbe",
+   "part": "stem",
+   "exclusive": true,
+   "requires": "hutpilz",
+   "tags": [
+    "stiel_weiß",
+    "stiel_gelb",
+    "stiel_braun",
+    "stiel_schwarz",
+    "stiel_rot",
+    "stiel_orange",
+    "stiel_blau",
+    "stiel_gruen",
+    "stiel_rosa",
+    "stiel_grau"
+   ]
+  },
+  {
+   "name": "stiel_details",
+   "part": "stem",
+   "exclusive": false,
+   "requires": "hutpilz",
+   "tags": [
+    "ring",
+    "knollig",
+    "netz"
+   ]
+  },
+  {
+   "name": "untergrund",
+   "part": "growth",
+   "exclusive": true,
+   "requires": null,
+   "tags": [
+    "auf_boden",
+    "auf_wiese",
+    "holz"
+   ]
+  },
+  {
+   "name": "wuchs",
+   "part": "growth",
+   "exclusive": false,
+   "requires": null,
+   "tags": [
+    "bueschelig"
+   ]
+  }
+ ],
+ "tags": [
+  {
+   "tag": "hutpilz",
+   "group": "gruppe",
+   "species": 2443,
+   "images": 44936
+  },
+  {
+   "tag": "kugel",
+   "group": "gruppe",
+   "species": 893,
+   "images": 12527
+  },
+  {
+   "tag": "hut_koralle",
+   "group": "gruppe",
+   "species": 242,
+   "images": 3989
+  },
+  {
+   "tag": "konsistenz_gallertartig",
+   "group": "gruppe",
+   "species": 312,
+   "images": 5692
+  },
+  {
+   "tag": "f",
+   "group": "gruppe",
+   "species": 376,
+   "images": 3166
+  },
+  {
+   "tag": "sonstige_gattung",
+   "group": "gruppe",
+   "species": 568,
+   "images": 8235
+  },
+  {
+   "tag": "weiß",
+   "group": "hut_farbe",
+   "species": 1692,
+   "images": 28708
+  },
+  {
+   "tag": "gelb",
+   "group": "hut_farbe",
+   "species": 2213,
+   "images": 38440
+  },
+  {
+   "tag": "braun",
+   "group": "hut_farbe",
+   "species": 2875,
+   "images": 50372
+  },
+  {
+   "tag": "schwarz",
+   "group": "hut_farbe",
+   "species": 443,
+   "images": 7092
+  },
+  {
+   "tag": "rot",
+   "group": "hut_farbe",
+   "species": 1260,
+   "images": 23035
+  },
+  {
+   "tag": "orange",
+   "group": "hut_farbe",
+   "species": 1844,
+   "images": 37081
+  },
+  {
+   "tag": "blau",
+   "group": "hut_farbe",
+   "species": 470,
+   "images": 8197
+  },
+  {
+   "tag": "gruen",
+   "group": "hut_farbe",
+   "species": 596,
+   "images": 9748
+  },
+  {
+   "tag": "rosa",
+   "group": "hut_farbe",
+   "species": 610,
+   "images": 11816
+  },
+  {
+   "tag": "grau",
+   "group": "hut_farbe",
+   "species": 1329,
+   "images": 22877
+  },
+  {
+   "tag": "spitz",
+   "group": "hut_form",
+   "species": 1863,
+   "images": 30323
+  },
+  {
+   "tag": "schirm",
+   "group": "hut_form",
+   "species": 1694,
+   "images": 35001
+  },
+  {
+   "tag": "trichter",
+   "group": "hut_form",
+   "species": 1267,
+   "images": 20097
+  },
+  {
+   "tag": "sonstige_form",
+   "group": "hut_form",
+   "species": 1802,
+   "images": 33930
+  },
+  {
+   "tag": "flocken",
+   "group": "hut_oberflaeche",
+   "species": 1795,
+   "images": 28587
+  },
+  {
+   "tag": "hut_gerieft",
+   "group": "hut_oberflaeche",
+   "species": 746,
+   "images": 12773
+  },
+  {
+   "tag": "lamellen",
+   "group": "unterseite",
+   "species": 1994,
+   "images": 35325
+  },
+  {
+   "tag": "roehren",
+   "group": "unterseite",
+   "species": 343,
+   "images": 8118
+  },
+  {
+   "tag": "stachel",
+   "group": "unterseite",
+   "species": 145,
+   "images": 2312
+  },
+  {
+   "tag": "leisten",
+   "group": "unterseite",
+   "species": 14,
+   "images": 488
+  },
+  {
+   "tag": "lr_weiß",
+   "group": "unterseite_farbe",
+   "species": 1767,
+   "images": 32958
+  },
+  {
+   "tag": "lr_gelb",
+   "group": "unterseite_farbe",
+   "species": 1714,
+   "images": 31841
+  },
+  {
+   "tag": "lr_braun",
+   "group": "unterseite_farbe",
+   "species": 1634,
+   "images": 27747
+  },
+  {
+   "tag": "lr_schwarz",
+   "group": "unterseite_farbe",
+   "species": 348,
+   "images": 4309
+  },
+  {
+   "tag": "lr_rot",
+   "group": "unterseite_farbe",
+   "species": 808,
+   "images": 14012
+  },
+  {
+   "tag": "lr_orange",
+   "group": "unterseite_farbe",
+   "species": 970,
+   "images": 19179
+  },
+  {
+   "tag": "lr_blau",
+   "group": "unterseite_farbe",
+   "species": 275,
+   "images": 4979
+  },
+  {
+   "tag": "lr_gruen",
+   "group": "unterseite_farbe",
+   "species": 269,
+   "images": 5177
+  },
+  {
+   "tag": "lr_rosa",
+   "group": "unterseite_farbe",
+   "species": 527,
+   "images": 9678
+  },
+  {
+   "tag": "lr_grau",
+   "group": "unterseite_farbe",
+   "species": 897,
+   "images": 15661
+  },
+  {
+   "tag": "stiel_weiß",
+   "group": "stiel_farbe",
+   "species": 1883,
+   "images": 32939
+  },
+  {
+   "tag": "stiel_gelb",
+   "group": "stiel_farbe",
+   "species": 1389,
+   "images": 26938
+  },
+  {
+   "tag": "stiel_braun",
+   "group": "stiel_farbe",
+   "species": 1752,
+   "images": 32249
+  },
+  {
+   "tag": "stiel_schwarz",
+   "group": "stiel_farbe",
+   "species": 209,
+   "images": 3757
+  },
+  {
+   "tag": "stiel_rot",
+   "group": "stiel_farbe",
+   "species": 592,
+   "images": 11702
+  },
+  {
+   "tag": "stiel_orange",
+   "group": "stiel_farbe",
+   "species": 918,
+   "images": 19879
+  },
+  {
+   "tag": "stiel_blau",
+   "group": "stiel_farbe",
+   "species": 268,
+   "images": 3964
+  },
+  {
+   "tag": "stiel_gruen",
+   "group": "stiel_farbe",
+   "species": 275,
+   "images": 3657
+  },
+  {
+   "tag": "stiel_rosa",
+   "group": "stiel_farbe",
+   "species": 308,
+   "images": 5825
+  },
+  {
+   "tag": "stiel_grau",
+   "group": "stiel_farbe",
+   "species": 635,
+   "images": 11279
+  },
+  {
+   "tag": "ring",
+   "group": "stiel_details",
+   "species": 351,
+   "images": 7974
+  },
+  {
+   "tag": "knollig",
+   "group": "stiel_details",
+   "species": 389,
+   "images": 7607
+  },
+  {
+   "tag": "netz",
+   "group": "stiel_details",
+   "species": 59,
+   "images": 1567
+  },
+  {
+   "tag": "auf_boden",
+   "group": "untergrund",
+   "species": 2885,
+   "images": 47337
+  },
+  {
+   "tag": "auf_wiese",
+   "group": "untergrund",
+   "species": 715,
+   "images": 11356
+  },
+  {
+   "tag": "holz",
+   "group": "untergrund",
+   "species": 1847,
+   "images": 29774
+  },
+  {
+   "tag": "bueschelig",
+   "group": "wuchs",
+   "species": 1082,
+   "images": 17202
+  }
+ ],
+ "require_p": 0.5
+}
