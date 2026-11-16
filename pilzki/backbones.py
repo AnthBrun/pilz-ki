@@ -28,6 +28,16 @@ ALIASES = {
     "clip-b32": "openclip:ViT-B-32@laion2b_s34b_b79k",
 }
 
+# Preprocessing fixes for checkpoints whose hub config is wrong. The BVRA
+# TF-EfficientNets declare ImageNet mean/std but were trained on inputs in
+# [-1, 1]; with the declared values the classifier's mean top-1 confidence on
+# our photos drops from 0.70 to 0.42 (effv2b3), and linear probes collapse.
+_TF_NORM = {"mean": (0.5, 0.5, 0.5), "std": (0.5, 0.5, 0.5)}
+PREPROCESS_OVERRIDES = {
+    ALIASES["fungi-effv2b3"]: _TF_NORM,
+    ALIASES["fungi-effb0"]: _TF_NORM,
+}
+
 
 @dataclass
 class Preprocess:
@@ -80,7 +90,11 @@ class Backbone(nn.Module):
         if kind == "timm":
             import timm
 
-            self.model = timm.create_model(name, pretrained=pretrained, num_classes=0, **kwargs)
+            # Load with the checkpoint's own classifier, then drop it: passing
+            # num_classes=0 directly fails for hf-hub checkpoints whose config
+            # does not name the classifier (e.g. the BVRA fungi models).
+            self.model = timm.create_model(name, pretrained=pretrained, **kwargs)
+            self.model.reset_classifier(0)
             cfg = timm.data.resolve_model_data_config(self.model)
             self.feat_dim = self.model.num_features
             self.preprocess = Preprocess(
@@ -90,6 +104,8 @@ class Backbone(nn.Module):
                 crop_pct=float(cfg.get("crop_pct", 1.0)),
                 interpolation=cfg.get("interpolation", "bicubic"),
             )
+            for key, value in PREPROCESS_OVERRIDES.get(self.spec, {}).items():
+                setattr(self.preprocess, key, value)
         elif kind == "openclip":
             import open_clip
 
