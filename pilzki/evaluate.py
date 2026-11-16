@@ -1,6 +1,6 @@
 """Step 5: calibrate per-tag thresholds and measure what prefill would do.
 
-    python -m pilzki evaluate --run work/runs/heads-fungi-effv2b3 [--target-precision 0.9]
+    python -m pilzki evaluate --run work/runs/heads-fungi-effv2b3 [--target-precision 0.995]
 
 The web filter ANDs tags. One wrong prefilled tag removes the right species
 from the results, so the key metric is **survival**: the share of photos for
@@ -20,7 +20,7 @@ import numpy as np
 from .common import read_json, write_json
 from .labels import load_labels
 
-ALPHAS = (0.0, 0.25, 0.5, 0.75, 1.0)
+ALPHAS = (0.0, 0.1, 0.25, 0.4, 0.5, 0.75, 1.0)
 
 
 def sigmoid(x):
@@ -139,21 +139,32 @@ def main(args) -> None:
     Y_val = labels.species_tags[y_val]
 
     # alpha: mix of attribute head and species-head marginal, chosen on val.
+    # Thresholds already pin the per-tag precision, so pick the alpha that
+    # prefills the most tags on val (mAP would always favour the species head,
+    # which is sharpest on seen species but useless for unseen ones).
+    def calibrate(alpha):
+        p_val, _ = tag_probs(val["tag_logits"], val["species_logits"], labels.species_tags, alpha)
+        thresholds = {}
+        for j, tag in enumerate(labels.tags):
+            ok = tag not in args.disable
+            thresholds[tag] = threshold_for_precision(p_val[:, j], Y_val[:, j], args.target_precision, args.min_support) if ok else None
+        return p_val, thresholds
+
+    def mean_prefilled(p_val, thresholds):
+        tag_index = {t: i for i, t in enumerate(labels.tags)}
+        return float(np.mean([len(prefill(p, labels.groups, tag_index, thresholds, labels.require_p)) for p in p_val]))
+
     if args.alpha is None:
-        scores = {}
-        for a in ALPHAS:
-            pv, _ = tag_probs(val["tag_logits"], val["species_logits"], labels.species_tags, a)
-            scores[a] = np.mean([x for x in (average_precision(pv[:, j], Y_val[:, j]) for j in range(labels.n_tags)) if x is not None])
-        alpha = max(scores, key=scores.get)
-        print("tag mAP on val by alpha: " + ", ".join(f"{a}: {s:.3f}" for a, s in scores.items()))
+        scores = {a: mean_prefilled(*calibrate(a)) for a in ALPHAS}
+        alpha = max(scores, key=lambda a: (round(scores[a], 2), -a))
+        print("prefilled tags on val by alpha: " + ", ".join(f"{a}: {s:.2f}" for a, s in scores.items()))
     else:
         alpha = args.alpha
-    p_val, _ = tag_probs(val["tag_logits"], val["species_logits"], labels.species_tags, alpha)
+    p_val, thresholds = calibrate(alpha)
 
-    thresholds, tag_rows = {}, []
+    tag_rows = []
     for j, tag in enumerate(labels.tags):
-        thr = None if tag in args.disable else threshold_for_precision(p_val[:, j], Y_val[:, j], args.target_precision, args.min_support)
-        thresholds[tag] = thr
+        thr = thresholds[tag]
         sel = p_val[:, j] >= thr if thr is not None else np.zeros(len(p_val), bool)
         tag_rows.append({
             "tag": tag,
@@ -223,7 +234,7 @@ def render_report(run, config, alpha, args, tag_rows, results, labels) -> str:
 
 def add_arguments(p) -> None:
     p.add_argument("--run", required=True)
-    p.add_argument("--target-precision", type=float, default=0.9)
+    p.add_argument("--target-precision", type=float, default=0.995)
     p.add_argument("--min-support", type=int, default=20, help="min. predicted positives on val to enable a tag")
     p.add_argument("--alpha", type=float, help="fix the attribute/species mix instead of tuning it")
     p.add_argument("--disable", nargs="*", default=[], help="tags never to prefill")
