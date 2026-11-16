@@ -52,3 +52,12 @@ def test_vocab_tags_unique_and_requires_known():
     assert len(vocab.TAGS) == len(set(vocab.TAGS))
     for g in vocab.GROUPS:
         assert g.requires is None or g.requires in vocab.TAGS
+
+
+def test_scientific_genus():
+    from pilzki.labels import scientific_genus
+
+    assert scientific_genus("BOLETUS EDULIS") == "BOLETUS"
+    assert scientific_genus("  Amanita muscaria var. aureola") == "AMANITA"
+    assert scientific_genus("") == ""
+    assert scientific_genus("Kombucha – Pilz (ASCOMYCOTA)") == "KOMBUCHA"

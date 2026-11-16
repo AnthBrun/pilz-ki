@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -21,10 +22,16 @@ class Labels:
     groups: list[dict]
     require_p: float
     species_tags: np.ndarray  # (n_species, n_tags) float32 0/1
+    genera: list[str]  # scientific genus names, sorted
+    species_genus: np.ndarray  # (n_species,) int, index into genera, -1 if unknown
 
     @property
     def n_species(self) -> int:
         return len(self.slugs)
+
+    @property
+    def n_genera(self) -> int:
+        return len(self.genera)
 
     @property
     def n_tags(self) -> int:
@@ -42,7 +49,22 @@ def load_labels(data_dir: Path = DATA) -> Labels:
             if t in tag_index:
                 matrix[i, tag_index[t]] = 1.0
     slugs = [s["slug"] for s in species]
-    return Labels(species, slugs, {s: i for i, s in enumerate(slugs)}, tags, vocab["groups"], vocab.get("require_p", 0.5), matrix)
+    genus_of = [scientific_genus(s.get("wissenschaftlich", "")) for s in species]
+    genera = sorted({g for g in genus_of if g})
+    genus_index = {g: i for i, g in enumerate(genera)}
+    species_genus = np.array([genus_index.get(g, -1) for g in genus_of], dtype=np.int64)
+    return Labels(species, slugs, {s: i for i, s in enumerate(slugs)}, tags, vocab["groups"], vocab.get("require_p", 0.5), matrix,
+                  genera, species_genus)
+
+
+def scientific_genus(name: str) -> str:
+    """First word of the scientific name ("BOLETUS EDULIS" -> "BOLETUS"); '' if there is none.
+
+    The German `gattung` field mixes several overlapping group names for one
+    genus (Cortinarius appears under at least three), so it is not used.
+    """
+    m = re.match(r"\s*([A-Za-z]+)\s", (name or "") + " ")
+    return m.group(1).upper() if m else ""
 
 
 def load_phototypes(data_dir: Path = DATA) -> dict[str, str]:

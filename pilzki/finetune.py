@@ -43,15 +43,19 @@ def main(args) -> None:
     print(f"train {len(train_rows)} | " + " | ".join(f"{s} {len(v)}" for s, v in eval_rows.items()))
 
     backbone = Backbone(args.backbone).to(dev)
-    heads = Heads(backbone.feat_dim, labels.n_tags, labels.n_species, hidden=args.hidden, dropout=args.dropout).to(dev)
+    n_genera = labels.n_genera if args.genus_weight > 0 else 0
+    heads = Heads(backbone.feat_dim, labels.n_tags, labels.n_species, hidden=args.hidden, dropout=args.dropout, n_genera=n_genera).to(dev)
     if args.init_heads:
         init = Path(args.init_heads)
         cfg = read_json(init / "config.json")
         if cfg["heads"]["feat_dim"] != backbone.feat_dim or cfg["tags"] != labels.tags or cfg["slugs"] != labels.slugs:
             raise SystemExit("--init-heads run does not match this backbone/data")
-        heads = Heads(**cfg["heads"]).to(dev)
-        heads.load_state_dict(torch.load(init / "heads.pt", map_location=dev))
+        heads = Heads(**{**cfg["heads"], "n_genera": n_genera}).to(dev)
+        missing, unexpected = heads.load_state_dict(torch.load(init / "heads.pt", map_location=dev), strict=False)
+        if unexpected or any(not k.startswith("genus.") for k in missing):
+            raise SystemExit(f"--init-heads weights do not fit: missing {missing}, unexpected {unexpected}")
     M = torch.as_tensor(labels.species_tags, device=dev)
+    G = torch.as_tensor(labels.species_genus, device=dev)
 
     y_train = np.array([labels.species_index[r["slug"]] for r in train_rows])
     sampler = WeightedRandomSampler(class_weights(y_train, labels.n_species, args.balance).tolist(), num_samples=len(train_rows), replacement=True)
@@ -74,8 +78,13 @@ def main(args) -> None:
     use_scaler = dev.type == "cuda" and not torch.cuda.is_bf16_supported()
     scaler = torch.amp.GradScaler("cuda", enabled=use_scaler)
 
-    def loss_fn(tl, sl, y):
-        return args.tag_weight * F.binary_cross_entropy_with_logits(tl.float(), M[y]) + F.cross_entropy(sl.float(), y, label_smoothing=args.label_smoothing)
+    def loss_fn(tl, sl, gl, y):
+        loss = args.tag_weight * F.binary_cross_entropy_with_logits(tl.float(), M[y]) + F.cross_entropy(sl.float(), y, label_smoothing=args.label_smoothing)
+        if gl is not None:  # species without a scientific genus have target -1 and are ignored
+            gy = G[y]
+            if (gy >= 0).any():
+                loss = loss + args.genus_weight * F.cross_entropy(gl.float(), gy, ignore_index=-1, label_smoothing=args.label_smoothing)
+        return loss
 
     run = Path(args.run) if args.run else work_dir() / "runs" / f"ft-{safe_name(args.backbone)}{'-final' if args.final else ''}"
     run.mkdir(parents=True, exist_ok=True)
@@ -86,6 +95,7 @@ def main(args) -> None:
         "heads": heads.config,
         "tags": labels.tags,
         "slugs": labels.slugs,
+        "genera": labels.genera if n_genera else [],
         "final": args.final,
         "args": vars(args),
     }
@@ -102,8 +112,8 @@ def main(args) -> None:
         for x, y, _ in tqdm(train_loader, desc=f"epoch {epoch + 1}", leave=False):
             x, y = x.to(dev, non_blocking=True), y.to(dev, non_blocking=True)
             with autocast(dev):
-                tl, sl = heads(backbone(x))
-            loss = loss_fn(tl, sl, y)
+                tl, sl, gl = heads(backbone(x), with_genus=True)
+            loss = loss_fn(tl, sl, gl, y)
             opt.zero_grad(set_to_none=True)
             scaler.scale(loss).backward()
             scaler.unscale_(opt)
@@ -119,8 +129,8 @@ def main(args) -> None:
             for x, y, _ in val_loader:
                 x, y = x.to(dev, non_blocking=True), y.to(dev, non_blocking=True)
                 with autocast(dev):
-                    tl, sl = heads(backbone(x))
-                val_loss += loss_fn(tl, sl, y).item() * len(y)
+                    tl, sl, gl = heads(backbone(x), with_genus=True)
+                val_loss += loss_fn(tl, sl, gl, y).item() * len(y)
                 correct += (sl.argmax(-1) == y).sum().item()
                 n += len(y)
         val_loss /= max(1, n)
@@ -137,7 +147,9 @@ def main(args) -> None:
     for split, rs in eval_rows.items():
         if rs:
             out = predict(backbone, heads, rs, eval_transform(backbone.preprocess), dev, args.batch_size * 2, args.workers)
-            save_predictions(run / f"preds_{split}.npz", [r["id"] for r in rs], [r["slug"] for r in rs], out[:, : labels.n_tags], out[:, labels.n_tags:])
+            nt, ns = labels.n_tags, labels.n_species
+            save_predictions(run / f"preds_{split}.npz", [r["id"] for r in rs], [r["slug"] for r in rs],
+                             out[:, :nt], out[:, nt:nt + ns], out[:, nt + ns:])
     print(f"run saved to {run}")
 
 
@@ -155,6 +167,7 @@ def add_arguments(p) -> None:
     p.add_argument("--hidden", type=int, default=0)
     p.add_argument("--dropout", type=float, default=0.2)
     p.add_argument("--tag-weight", type=float, default=1.0)
+    p.add_argument("--genus-weight", type=float, default=0.0, help="weight of an auxiliary genus loss (0 = no genus head)")
     p.add_argument("--label-smoothing", type=float, default=0.1)
     p.add_argument("--balance", type=float, default=0.5)
     p.add_argument("--workers", type=int, default=8)

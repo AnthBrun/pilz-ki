@@ -15,11 +15,12 @@ from .common import image_path
 
 
 class Heads(nn.Module):
-    """Two outputs on one feature vector: trait tags (multi-label) and species."""
+    """Outputs on one feature vector: trait tags (multi-label), species, and
+    optionally genus (an auxiliary training target, see finetune --genus-weight)."""
 
-    def __init__(self, feat_dim: int, n_tags: int, n_species: int, hidden: int = 0, dropout: float = 0.2):
+    def __init__(self, feat_dim: int, n_tags: int, n_species: int, hidden: int = 0, dropout: float = 0.2, n_genera: int = 0):
         super().__init__()
-        self.config = {"feat_dim": feat_dim, "n_tags": n_tags, "n_species": n_species, "hidden": hidden, "dropout": dropout}
+        self.config = {"feat_dim": feat_dim, "n_tags": n_tags, "n_species": n_species, "hidden": hidden, "dropout": dropout, "n_genera": n_genera}
         self.norm = nn.LayerNorm(feat_dim)
         if hidden:
             self.trunk = nn.Sequential(nn.Dropout(dropout), nn.Linear(feat_dim, hidden), nn.GELU())
@@ -30,9 +31,12 @@ class Heads(nn.Module):
         self.dropout = nn.Dropout(dropout)
         self.tags = nn.Linear(dim, n_tags)
         self.species = nn.Linear(dim, n_species)
+        self.genus = nn.Linear(dim, n_genera) if n_genera else None
 
-    def forward(self, features: torch.Tensor):
+    def forward(self, features: torch.Tensor, with_genus: bool = False):
         h = self.dropout(self.trunk(self.norm(features.float())))
+        if with_genus:
+            return self.tags(h), self.species(h), self.genus(h) if self.genus is not None else None
         return self.tags(h), self.species(h)
 
 
@@ -98,7 +102,7 @@ def existing(rows: list[dict]) -> list[dict]:
 
 @torch.no_grad()
 def predict(backbone: nn.Module, heads: Heads | None, rows: list[dict], transform, dev, batch_size=64, workers=4):
-    """Features (heads=None) or (tag_logits, species_logits) for rows, in order."""
+    """Features (heads=None) or [tag_logits | species_logits | genus_logits if any] for rows, in order."""
     loader = DataLoader(ImageDataset(rows, transform), batch_size=batch_size, num_workers=workers, pin_memory=dev.type == "cuda")
     backbone.eval()
     if heads is not None:
@@ -112,14 +116,16 @@ def predict(backbone: nn.Module, heads: Heads | None, rows: list[dict], transfor
         if heads is None:
             outs.append(f.float().cpu())
         else:
-            tl, sl = heads(f.float())
-            outs.append(torch.cat([tl, sl], 1).float().cpu())
+            tl, sl, gl = heads(f.float(), with_genus=True)
+            outs.append(torch.cat([tl, sl] + ([gl] if gl is not None else []), 1).float().cpu())
     return torch.cat(outs).numpy() if outs else np.zeros((0, 0), np.float32)
 
 
-def save_predictions(path: Path, ids, slugs, tag_logits: np.ndarray, species_logits: np.ndarray) -> None:
+def save_predictions(path: Path, ids, slugs, tag_logits: np.ndarray, species_logits: np.ndarray, genus_logits: np.ndarray | None = None) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    np.savez_compressed(path, ids=np.array(ids), slugs=np.array(slugs), tag_logits=tag_logits.astype(np.float16), species_logits=species_logits.astype(np.float16))
+    extra = {"genus_logits": genus_logits.astype(np.float16)} if genus_logits is not None and genus_logits.size else {}
+    np.savez_compressed(path, ids=np.array(ids), slugs=np.array(slugs), tag_logits=tag_logits.astype(np.float16),
+                        species_logits=species_logits.astype(np.float16), **extra)
 
 
 def preprocess_from_json(d: dict) -> Preprocess:
