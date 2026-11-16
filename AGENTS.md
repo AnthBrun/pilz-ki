@@ -237,14 +237,22 @@ If survival is too low: raise `--target-precision`, `--disable` noisy tags, or
 prefill only the most reliable groups (body type, underside type, substrate).
 Adding a tag back: put it into `pilzki/vocab.py`, rerun `prepare`, retrain.
 
-## Phase 6: integration into `pilzdaten` (separate repo, later)
+## Phase 6: integration into `pilzdaten` (done, branch `feat/photo-prefill` there)
 
-- Serve `model.int8.onnx` + `meta.json` from `DATA_DIR/model/` (not embedded in the Go binary), with ETag.
-- Load `onnxruntime-web` (WASM) lazily only after the user taps a new "Foto" button; cache the model in the service worker for offline use.
-- Preprocess in JS exactly like `meta.json.input`: resize short side, center crop, RGB in [0, 1], NCHW float32.
-- Drop photos with `fungus_prob` < `meta.json.gate.threshold` (tell the user "Kein Pilz erkannt"); if no photo of the find passes, prefill nothing.
-- Average outputs over the remaining photos of the find, apply the prefill rule above, write tags into the existing state (`js/state.js`), and mark them as "vorgeschlagen" so the user can remove them.
-- Optionally show the top-5 species from `species_probs` with links to `/art/<slug>`.
+- `pilzdaten/scripts/model-bundle.sh <export dir> data/model` copies `meta.json` and
+  `model.int8.onnx`, adds a checksum-pinned onnxruntime-web (WASM) and `.gz` variants.
+  `MODEL_DIR` (default `DATA_DIR/model`) is served under `/model/`, not embedded in the
+  Go binary and not in git; without it the "Foto" button is hidden.
+- `static/js/photo.js` mirrors `pilzki/predict.py`: resize the short side, then centre crop
+  1:1, RGB in [0, 1]; gate; mean over the photos of a find that pass it; prefill rule.
+  Change both together.
+- Suggestions are dashed chips with a camera icon (`state.suggested`), removable like any
+  filter; a new photo replaces old suggestions but never the user's own choices in an
+  exclusive group. Up to three similar species (>= 1 %) are listed for comparison.
+- The service worker caches model and runtime (versioned URLs), so it works offline.
+- Checked with Playwright on 262 Commons photos: browser and Python give the same quality
+  (4.25 vs 4.30 tags, survival 0.981 vs 0.985; identical tag sets on 77 %, differences are
+  tags at the threshold, from JPEG decoding and resampling); ~0.3 s per photo on a desktop CPU.
 - Photos never leave the device.
 
 ## Open questions

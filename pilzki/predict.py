@@ -6,8 +6,9 @@
 Photos whose `fungus_prob` is below meta.json["gate"]["threshold"] get no
 prefill ("fungus": false); in --find mode they are left out of the average.
 
-Reference implementation for the JS port (phase 6): it only uses meta.json and
-the ONNX file, no torch and no training code. Preprocessing follows
+Reference implementation for the JS port (pilzdaten static/js/photo.js; change
+both together): it only uses meta.json and the ONNX file, no torch and no
+training code. Preprocessing follows
 meta.json["input"]: resize the short side, center crop, RGB in [0, 1], NCHW.
 """
 
