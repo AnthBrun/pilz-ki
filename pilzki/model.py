@@ -48,12 +48,17 @@ def combine(tag_logits: torch.Tensor, species_logits: torch.Tensor, species_tags
 
 
 class Classifier(nn.Module):
-    """Deployable model: RGB in [0, 1], NCHW, already resized/cropped to `size`."""
+    """Deployable model: RGB in [0, 1], NCHW, already resized/cropped to `size`.
 
-    def __init__(self, backbone: Backbone, heads: Heads, species_tags: np.ndarray, alpha: float = 0.5):
+    Returns (tag_probs, species_probs), plus fungus_prob [N] when a gate
+    (see gate.py) is attached.
+    """
+
+    def __init__(self, backbone: Backbone, heads: Heads, species_tags: np.ndarray, alpha: float = 0.5, gate: nn.Linear | None = None):
         super().__init__()
         self.backbone = backbone
         self.heads = heads
+        self.gate = gate
         pp = backbone.preprocess
         self.register_buffer("mean", torch.tensor(pp.mean).view(1, 3, 1, 1))
         self.register_buffer("std", torch.tensor(pp.std).view(1, 3, 1, 1))
@@ -62,8 +67,12 @@ class Classifier(nn.Module):
 
     def forward(self, image: torch.Tensor):
         x = (image - self.mean) / self.std
-        tag_logits, species_logits = self.heads(self.backbone(x))
-        return combine(tag_logits, species_logits, self.species_tags, self.alpha)
+        features = self.backbone(x)
+        tag_logits, species_logits = self.heads(features)
+        tag_probs, species_probs = combine(tag_logits, species_logits, self.species_tags, self.alpha)
+        if self.gate is None:
+            return tag_probs, species_probs
+        return tag_probs, species_probs, self.gate(features.float()).squeeze(-1).sigmoid()
 
 
 class ImageDataset(Dataset):

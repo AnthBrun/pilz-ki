@@ -54,7 +54,9 @@ STEPS = {
     "train-heads": ("train_heads", _from_module("train_heads"), "train tag + species heads on embeddings"),
     "evaluate": ("evaluate", _from_module("evaluate"), "thresholds, survival metrics, report.md"),
     "finetune": ("finetune", _from_module("finetune"), "end-to-end fine-tuning on photos"),
+    "train-gate": ("gate", _from_module("gate"), "fungus/non-fungus gate on a run's features (needs negatives)"),
     "export": ("export", _from_module("export"), "ONNX + meta.json for the web app"),
+    "predict": ("predict", _from_module("predict"), "run an exported model on photos (reference for the JS port)"),
 }
 
 

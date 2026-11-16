@@ -4,8 +4,11 @@
 
 Writes work/export/<run>/ with
   model.onnx       fp32, input `image` float32 [N,3,S,S] RGB in [0,1]
-  model.int8.onnx  weights of MatMul/Gemm quantised (smaller download)
-  meta.json        input size, tag order + thresholds + groups, species slugs
+  model.int8.onnx  same graph with compressed weights (smaller download, see compress_weights)
+  meta.json        input size, tag order + thresholds + groups, species slugs, gate threshold
+
+With <run>/gate.pt (from `train-gate`) the model has a third output
+`fungus_prob` [N]; photos below meta.json["gate"]["threshold"] are ignored.
 
 Outputs: `tag_probs` [N, n_tags] (already mixed with the species head, see
 model.combine) and `species_probs` [N, n_species]. Several photos of one find
@@ -21,6 +24,50 @@ import numpy as np
 
 from .common import read_json, work_dir, write_json
 from .labels import load_labels, load_manifest
+
+
+def compress_weights(src: Path, dst: Path, int8_min: int = 300_000, fp16_min: int = 1024) -> None:
+    """Weight-only compression; all arithmetic stays fp32.
+
+    Large Conv/Gemm weights are stored as per-output-channel symmetric int8
+    behind DequantizeLinear, mid-sized ones as fp16 behind Cast, tiny ones stay
+    fp32. onnxruntime folds both back to fp32 constants when the session loads,
+    so only the download shrinks. Real int8 kernels (quantize_dynamic/static)
+    were tried and break EfficientNet: 5-27 % prefill agreement; quantising the
+    species-marginal MatMul alone already drops agreement to 42 %. Keeping the
+    smaller (depthwise, SE, stem) convs out of int8 is what keeps agreement
+    high (~99 % vs ~91 % with every conv in int8).
+    """
+    import onnx
+    from onnx import TensorProto, helper, numpy_helper
+
+    m = onnx.load(str(src))
+    inits = {i.name: i for i in m.graph.initializer}
+    weights = {n.input[1] for n in m.graph.node if n.op_type in ("Conv", "Gemm") and len(n.input) > 1 and n.input[1] in inits}
+    decode = []
+    for name in sorted(weights):
+        w = numpy_helper.to_array(inits[name]).astype(np.float32)
+        if w.size < fp16_min:
+            continue
+        m.graph.initializer.remove(inits[name])
+        if w.size >= int8_min:
+            scale = np.abs(w.reshape(w.shape[0], -1)).max(1) / 127.0
+            scale = np.where(scale > 0, scale, 1.0).astype(np.float32)
+            q = np.clip(np.round(w / scale.reshape(-1, *[1] * (w.ndim - 1))), -127, 127).astype(np.int8)
+            m.graph.initializer.extend([
+                numpy_helper.from_array(q, f"{name}_q"),
+                numpy_helper.from_array(scale, f"{name}_scale"),
+                numpy_helper.from_array(np.zeros(len(scale), np.int8), f"{name}_zero"),
+            ])
+            decode.append(helper.make_node("DequantizeLinear", [f"{name}_q", f"{name}_scale", f"{name}_zero"], [name], axis=0, name=f"{name}_dequant"))
+        else:
+            m.graph.initializer.append(numpy_helper.from_array(w.astype(np.float16), f"{name}_fp16"))
+            decode.append(helper.make_node("Cast", [f"{name}_fp16"], [name], to=TensorProto.FLOAT, name=f"{name}_cast"))
+    nodes = list(m.graph.node)
+    del m.graph.node[:]
+    m.graph.node.extend(decode + nodes)
+    onnx.checker.check_model(m)
+    onnx.save(m, str(dst))
 
 
 def load_classifier(run: Path):
@@ -42,7 +89,15 @@ def load_classifier(run: Path):
         ckpt = torch.load(run / "model.pt", map_location="cpu")
         backbone.load_state_dict(ckpt["backbone"])
         heads.load_state_dict(ckpt["heads"])
-    model = Classifier(backbone, heads, labels.species_tags, thresholds["alpha"]).eval()
+    gate = None
+    if (run / "gate.pt").exists():
+        g = torch.load(run / "gate.pt", map_location="cpu")
+        gate = torch.nn.Linear(g["weight"].numel(), 1)
+        with torch.no_grad():
+            gate.weight.copy_(g["weight"].float().view(1, -1))
+            gate.bias.fill_(float(g["bias"]))
+        thresholds = {**thresholds, "gate_threshold": float(g["threshold"])}
+    model = Classifier(backbone, heads, labels.species_tags, thresholds["alpha"], gate).eval()
     return model, config, thresholds, labels
 
 
@@ -61,17 +116,18 @@ def main(args) -> None:
 
     onnx_path = out / "model.onnx"
     dummy = torch.rand(1, 3, pp.size, pp.size)
+    outputs = ["tag_probs", "species_probs"] + (["fungus_prob"] if model.gate is not None else [])
+    if model.gate is None:
+        print("warning: no gate.pt in the run; the model will prefill tags on non-fungus photos (run `pilzki train-gate`)")
     torch.onnx.export(
-        model, (dummy,), str(onnx_path), input_names=["image"], output_names=["tag_probs", "species_probs"],
-        dynamic_axes={"image": {0: "n"}, "tag_probs": {0: "n"}, "species_probs": {0: "n"}},
+        model, (dummy,), str(onnx_path), input_names=["image"], output_names=outputs,
+        dynamic_axes={"image": {0: "n"}, **{o: {0: "n"} for o in outputs}},
         opset_version=args.opset, dynamo=False,
     )
     paths = [onnx_path]
     if not args.no_int8:
-        from onnxruntime.quantization import QuantType, quantize_dynamic
-
         int8_path = out / "model.int8.onnx"
-        quantize_dynamic(str(onnx_path), str(int8_path), weight_type=QuantType.QUInt8, op_types_to_quantize=["MatMul", "Gemm"])
+        compress_weights(onnx_path, int8_path)
         paths.append(int8_path)
 
     # Compare torch vs. ONNX (and int8) on real validation photos.
@@ -85,14 +141,21 @@ def main(args) -> None:
     if rows:
         x = torch.stack([ImageDataset(rows, to01)[i][0] for i in range(len(rows))])
         with torch.no_grad():
-            ref = model(x)[0].numpy()
+            ref_out = model(x)
+        ref = ref_out[0].numpy()
         ref_fill = [prefill(p, labels.groups, tag_index, thr, labels.require_p) for p in ref]
         for path in paths:
             sess = ort.InferenceSession(str(path), providers=["CPUExecutionProvider"])
-            got = sess.run(["tag_probs"], {"image": x.numpy()})[0]
+            got_out = sess.run(outputs, {"image": x.numpy()})
+            got = got_out[0]
             fill = [prefill(p, labels.groups, tag_index, thr, labels.require_p) for p in got]
             agree = np.mean([a == b for a, b in zip(ref_fill, fill)])
-            print(f"{path.name}: {path.stat().st_size / 1e6:.1f} MB, max |Δp| {np.abs(got - ref).max():.4f}, same prefill {agree:.0%} of {len(rows)} photos")
+            msg = f"{path.name}: {path.stat().st_size / 1e6:.1f} MB, max |Δp| {np.abs(got - ref).max():.4f}, same prefill {agree:.0%} of {len(rows)} photos"
+            if model.gate is not None:
+                gt = thresholds["gate_threshold"]
+                same_gate = np.mean((got_out[2] >= gt) == (ref_out[2].numpy() >= gt))
+                msg += f", same gate decision {same_gate:.0%}"
+            print(msg)
 
     group_of = {t: g["name"] for g in labels.groups for t in g["tags"]}
     write_json(out / "meta.json", {
@@ -104,13 +167,17 @@ def main(args) -> None:
             "resize_short_side": pp.resize, "center_crop": pp.size, "interpolation": pp.interpolation,
             "note": "mean/std normalisation happens inside the model",
         },
-        "outputs": {"tag_probs": "n_tags, order of `tags`", "species_probs": "n_species, order of `species`"},
+        "outputs": {"tag_probs": "n_tags, order of `tags`", "species_probs": "n_species, order of `species`",
+                    **({"fungus_prob": "probability that the photo shows a fungus fruit body"} if model.gate is not None else {})},
+        "gate": {"output": "fungus_prob", "threshold": thresholds["gate_threshold"],
+                 "rule": "photos with fungus_prob < threshold are ignored; if no photo of a find passes, prefill nothing"}
+        if model.gate is not None else None,
         "alpha": thresholds["alpha"],
         "require_p": labels.require_p,
         "groups": labels.groups,
         "tags": [{"tag": t, "group": group_of[t], "threshold": thr.get(t)} for t in labels.tags],
         "species": labels.slugs,
-        "aggregate": "mean of tag_probs and species_probs over all photos of one find",
+        "aggregate": "mean of tag_probs and species_probs over the photos of one find that pass the gate",
     })
     print(f"exported to {out}")
 
