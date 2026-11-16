@@ -24,7 +24,7 @@ def make_data(tmp_path):
     ])
     (d / "originals.json").write_text("{}")
     sha = tmp_path / "sha.txt"
-    lines = [f"{i:064x}  ./daten/details/A-Dateien/image{i}.jpg" for i in range(10)]
+    lines = [f"{i:x}{0:063x}  ./daten/details/A-Dateien/image{i}.jpg" for i in range(10)]
     lines += [f"{'b' * 64}  ./daten/details/B-Dateien/image1.jpg", f"{'5' * 64}  ./daten/details/B-Dateien/shared.jpg",
               f"{'5' * 64}  ./daten/details/C-Dateien/shared.jpg", f"{'d' * 64}  ./daten/details/C-Dateien/dup1.jpg",
               f"{'d' * 64}  ./daten/details/C-Dateien/dup2.jpg"]
