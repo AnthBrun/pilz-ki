@@ -57,6 +57,7 @@ STEPS = {
     "audit-labels": ("audit", _from_module("audit"), "list suspicious species labels in pilzdaten"),
     "train-gate": ("gate", _from_module("gate"), "fungus/non-fungus gate on a run's features (needs negatives)"),
     "export": ("export", _from_module("export"), "ONNX + meta.json for the web app"),
+    "release": ("release", _from_module("release"), "publish an export as GitHub release and pin it in pilzdaten"),
     "predict": ("predict", _from_module("predict"), "run an exported model on photos (reference for the JS port)"),
 }
 

@@ -145,6 +145,10 @@ mkdir -p work/neg/coco && curl -o work/neg/val2017.zip http://images.cocodataset
 uv run pilzki train-gate --run work/runs/ft-fungi-effv2b3-final --negatives work/neg/coco   # -> <run>/gate.pt, gate_report.md
 uv run pilzki export   --run work/runs/ft-fungi-effv2b3-final    # -> work/export/<run>/{model.onnx, model.int8.onnx, meta.json}
 uv run pilzki predict  --export work/export/ft-fungi-effv2b3-final photo.jpg   # reference for the JS port
+
+# 7. publish: GitHub release model-<version> here + PR in ../pilzdaten that pins it in model.lock
+uv run pilzki release --export work/export/ft-fungi-effv2b3-final --dry-run   # check notes and lock first
+uv run pilzki release --export work/export/ft-fungi-effv2b3-final
 ```
 
 Training machine: EndeavourOS (Arch), RTX 3060, 12 GB VRAM (Ampere, bf16 autocast is used).
@@ -239,10 +243,15 @@ Adding a tag back: put it into `pilzki/vocab.py`, rerun `prepare`, retrain.
 
 ## Phase 6: integration into `pilzdaten` (done, branch `feat/photo-prefill` there)
 
-- `pilzdaten/scripts/model-bundle.sh <export dir> data/model` copies `meta.json` and
-  `model.int8.onnx`, adds a checksum-pinned onnxruntime-web (WASM) and `.gz` variants.
-  `MODEL_DIR` (default `DATA_DIR/model`) is served under `/model/`, not embedded in the
-  Go binary and not in git; without it the "Foto" button is hidden.
+- Pipeline: `pilzki release` publishes the export as GitHub release `model-<version>`
+  (meta.json, model.int8.onnx, SHA256SUMS; notes = report.md + gate_report.md) and opens a
+  PR in pilzdaten that updates `model.lock`. pilzdaten's Docker build (stage `model`,
+  `scripts/model.sh fetch`) downloads exactly those files, checks the sha256 and adds a
+  checksum-pinned onnxruntime-web plus `.gz` variants under `/model`. Deploy = merge the PR
+  and rebuild; roll back = revert the lock commit. Never overwrite a release: export again
+  (new version) instead. `scripts/model.sh local <export>` there tests an unreleased export.
+- `MODEL_DIR` (image: `/model`, local: `data/model`) is served under `/model/`, not embedded
+  in the Go binary and not in git; without it the "Foto" button is hidden.
 - `static/js/photo.js` mirrors `pilzki/predict.py`: resize the short side, then centre crop
   1:1, RGB in [0, 1]; gate; mean over the photos of a find that pass it; prefill rule.
   Change both together.
@@ -280,6 +289,7 @@ pilzki/
   audit.py        suspicious species labels for pilzdaten -> work/label_audit.md
   export.py       ONNX (+ int8) and meta.json -> work/export/<run>/
   predict.py      run an export on photos (reference for the JS port)
+  release.py      GitHub release of an export + model.lock PR in pilzdaten
 data/             committed small outputs of prepare / phototype
 work/             ignored: images, emb, runs, export, sheets, neg (gate negatives)
 ```
