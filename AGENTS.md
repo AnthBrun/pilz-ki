@@ -221,6 +221,17 @@ Lessons:
   0.995 restores it while still prefilling more tags than the heads model.
 - int8 kernels (onnxruntime `quantize_dynamic`/`quantize_static`) break
   EfficientNet; `export.compress_weights` only compresses the stored weights.
+- Tried without gain (Nov 2026, non-final fungi-effv2b3, target precision 0.995):
+  horizontal-flip TTA (identical numbers), species temperature (T > 1 fewer tags,
+  T 0.85 +0.17 tags but holdout survival -0.01), ensemble with convnext heads
+  (more tags, lower survival), auxiliary genus head (`finetune --genus-weight 0.5`:
+  holdout genus@1 0.35 -> 0.39, but test/holdout tags and survival unchanged within
+  noise). Mixing a genus marginal into the tag probability trades ~0.3 tags for
+  +0.01 holdout survival. The prefill is limited by the labels more than by the model.
+- Label quality: `pilzki audit-labels --run work/runs/ft-fungi-effv2b3` lists
+  suspicious species tags for pilzdaten (e.g. Jodwasserkopf without lamellen,
+  Orangefüßiger Stacheling with lamellen instead of spines; the meta pages
+  "Kuriositäten" and "Teepilz" are not field species).
 
 If survival is too low: raise `--target-precision`, `--disable` noisy tags, or
 prefill only the most reliable groups (body type, underside type, substrate).
@@ -258,6 +269,7 @@ pilzki/
   finetune.py     end-to-end training  -> work/runs/ft-<backbone>/
   evaluate.py     thresholds, prefill simulation, report.md
   gate.py         fungus/non-fungus gate on a run's features -> <run>/gate.pt
+  audit.py        suspicious species labels for pilzdaten -> work/label_audit.md
   export.py       ONNX (+ int8) and meta.json -> work/export/<run>/
   predict.py      run an export on photos (reference for the JS port)
 data/             committed small outputs of prepare / phototype
