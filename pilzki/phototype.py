@@ -31,6 +31,11 @@ PROMPTS = {
         "a photo of a slime mold",
         "a photo of a crust fungus on bark",
         "a photo of a small cup fungus",
+        "a photo of a lichen on bark",
+        "a photo of tiny fungi on a twig",
+        "a macro photo of tiny fungi on dead wood",
+        "a photo of mold growing on a plant",
+        "a photo of a crust lichen on stone",
     ],
     "cut": [
         "a photo of a mushroom cut in half showing the flesh",
@@ -41,8 +46,14 @@ PROMPTS = {
         "a microscopy image of cells",
         "a microscope image of hyphae stained red",
         "a light micrograph with a scale bar",
+        "a fungal culture in a petri dish",
+        "a microscope image of cells stained blue",
     ],
-    "spore_print": ["a spore print on paper", "a spore print on glass"],
+    "spore_print": [
+        "a mushroom spore print, coloured powder on white paper",
+        "a spore print on paper",
+        "a spore print on glass",
+    ],
     "graphic": ["a drawing", "an icon", "a warning sign", "a diagram with text", "a scanned page of text", "a logo"],
 }
 
